@@ -601,13 +601,17 @@ thread_add_fd (struct thread **thread_array, struct thread *thread)
 
 /* Move thread to unuse list. */
 static void
-thread_add_unuse (struct thread_master *m, struct thread *thread)
+thread_add_unuse (struct thread *thread)
 {
-  assert (m != NULL && thread != NULL);
+  assert (thread);
+  /* thread_execute uses dummy threads, allocated on its stack */
+  if (thread->master == NULL)
+    return;
+  
+  thread->type = THREAD_UNUSED;
   assert (thread->next == NULL);
   assert (thread->prev == NULL);
-  assert (thread->type == THREAD_UNUSED);
-  thread_list_add (&m->unuse, thread);
+  thread_list_add (&thread->master->unuse, thread);
 }
 
 /* Free all unused thread. */
@@ -995,8 +999,7 @@ thread_cancel (struct thread *thread)
       assert(!"Thread should be either in queue or list or array!");
     }
 
-  thread->type = THREAD_UNUSED;
-  thread_add_unuse (thread->master, thread);
+  thread_add_unuse (thread);
 }
 
 /* Delete all events which has argument value arg. */
@@ -1018,8 +1021,7 @@ thread_cancel_event (struct thread_master *m, void *arg)
         {
           ret++;
           thread_list_delete (&m->event, t);
-          t->type = THREAD_UNUSED;
-          thread_add_unuse (m, t);
+          thread_add_unuse (t);
         }
     }
 
@@ -1036,8 +1038,7 @@ thread_cancel_event (struct thread_master *m, void *arg)
         {
           ret++;
           thread_list_delete (&m->ready, t);
-          t->type = THREAD_UNUSED;
-          thread_add_unuse (m, t);
+          thread_add_unuse (t);
         }
     }
   return ret;
@@ -1053,16 +1054,6 @@ thread_timer_wait (struct pqueue *queue, struct timeval *timer_val)
       return timer_val;
     }
   return NULL;
-}
-
-static struct thread *
-thread_run (struct thread_master *m, struct thread *thread,
-	    struct thread *fetch)
-{
-  *fetch = *thread;
-  thread->type = THREAD_UNUSED;
-  thread_add_unuse (m, thread);
-  return fetch;
 }
 
 static int
@@ -1148,10 +1139,9 @@ thread_process (struct thread_list *list)
   return ready;
 }
 
-
 /* Fetch next ready thread. */
-struct thread *
-thread_fetch (struct thread_master *m, struct thread *fetch)
+static struct thread *
+thread_fetch (struct thread_master *m)
 {
   struct thread *thread;
   thread_fd_set readfd;
@@ -1173,7 +1163,7 @@ thread_fetch (struct thread_master *m, struct thread *fetch)
        * more.
        */
       if ((thread = thread_trim_head (&m->ready)) != NULL)
-        return thread_run (m, thread, fetch);
+        return thread;
       
       /* To be fair to all kinds of threads, and avoid starvation, we
        * need to be careful to consider all thread types for scheduling
@@ -1227,14 +1217,14 @@ thread_fetch (struct thread_master *m, struct thread *fetch)
 	 list at this time.  If this is code is uncommented, then background
 	 timer threads will not run unless there is nothing else to do. */
       if ((thread = thread_trim_head (&m->ready)) != NULL)
-        return thread_run (m, thread, fetch);
+        return thread;
 #endif
 
       /* Background timer/events, lowest priority */
       thread_timer_process (m->background, &relative_time);
       
       if ((thread = thread_trim_head (&m->ready)) != NULL)
-        return thread_run (m, thread, fetch);
+        return thread;
     }
 }
 
@@ -1290,13 +1280,18 @@ struct thread *thread_current = NULL;
 
 /* We check thread consumed time. If the system has getrusage, we'll
    use that to get in-depth stats on the performance of the thread in addition
-   to wall clock time stats from gettimeofday. */
-void
+   to wall clock time stats from gettimeofday. 
+ 
+   'Dummy' threads (e.g.  see funcname_thread_execute) must have
+   thread->master == NULL.
+ */
+   
+static void
 thread_call (struct thread *thread)
 {
   unsigned long realtime, cputime;
   RUSAGE_T before, after;
-
+ 
  /* Cache a pointer to the relevant cpu history thread, if the thread
   * does not have it yet.
   *
@@ -1350,6 +1345,8 @@ thread_call (struct thread *thread)
 		 realtime/1000, cputime/1000);
     }
 #endif /* CONSUMED_TIME_CHECK */
+
+  thread_add_unuse (thread);
 }
 
 /* Execute thread */
@@ -1378,4 +1375,13 @@ funcname_thread_execute (struct thread_master *m,
   thread_call (&dummy);
 
   return NULL;
+}
+
+/* Co-operative thread main loop */
+void
+thread_main (struct thread_master *master)
+{
+  struct thread *t;
+  while ((t = thread_fetch (master)))
+    thread_call (t);
 }
