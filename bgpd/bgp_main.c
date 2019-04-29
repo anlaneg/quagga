@@ -443,6 +443,7 @@ main (int argc, char **argv)
 
   /* Initializations. */
   srandom (time (NULL));
+  //注册信号处理函数
   signal_init (bm->master, array_size(bgp_signals), bgp_signals);
   if (skip_runas)
     memset (&bgpd_privs, 0, sizeof (bgpd_privs));

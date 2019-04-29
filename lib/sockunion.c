@@ -237,6 +237,7 @@ sockunion_accept (int sock, union sockunion *su)
   int client_sock;
 
   len = sizeof (union sockunion);
+  //接受并返回一个新的socket
   client_sock = accept (sock, (struct sockaddr *) su, &len);
   
   sockunion_normalise_mapped (su);
@@ -454,6 +455,7 @@ sockopt_reuseport (int sock)
 }
 #endif /* 0 */
 
+//设置报文发送时的ttl值
 int
 sockopt_ttl (int family, int sock, int ttl)
 {

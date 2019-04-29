@@ -93,6 +93,7 @@ timeval_cmp (struct timeval a, struct timeval b)
 	  ? a.tv_usec - b.tv_usec : a.tv_sec - b.tv_sec);
 }
 
+//获得两个时间的差
 unsigned long
 timeval_elapsed (struct timeval a, struct timeval b)
 {
@@ -155,6 +156,7 @@ quagga_get_relative (struct timeval *tv)
     struct timespec tp;
     if (!(ret = clock_gettime (CLOCK_MONOTONIC, &tp)))
       {
+    	//更新relative_time,使其等于当前时间
         relative_time.tv_sec = tp.tv_sec;
         relative_time.tv_usec = tp.tv_nsec / 1000;
       }
@@ -694,6 +696,7 @@ thread_empty (struct thread_list *list)
 static struct thread *
 thread_trim_head (struct thread_list *list)
 {
+	//自list中获取一个thread变量（头部获取）
   if (!thread_empty (list))
     return thread_list_delete (list, list->head);
   return NULL;
@@ -723,6 +726,7 @@ thread_timer_remain(struct thread *thread)
 #define debugargpass funcname, schedfrom, fromln
 
 /* Get new thread.  */
+//分配一个thread变量
 static struct thread *
 thread_get (struct thread_master *m, u_char type,
 	    int (*func) (struct thread *), void *arg, debugargdef)
@@ -787,15 +791,18 @@ funcname_thread_add_read_write (int dir, struct thread_master *m,
 
   if (FD_ISSET (fd, fdset))
     {
+	  //防止重复注册
       zlog (NULL, LOG_WARNING, "There is already %s fd [%d]",
 	    (dir = THREAD_READ) ? "read" : "write", fd);
       return NULL;
     }
 
+  //fd存入相应集合
   FD_SET (fd, fdset);
 
   thread = thread_get (m, dir, func, arg, debugargpass);
   thread->u.fd = fd;
+  //将thread加入相应集合
   if (dir == THREAD_READ)
     thread_add_fd (m->read, thread);
   else
@@ -946,6 +953,7 @@ funcname_thread_add_event (struct thread_master *m,
 }
 
 /* Cancel thread from scheduler. */
+//取消一个任务
 void
 thread_cancel (struct thread *thread)
 {
@@ -953,6 +961,7 @@ thread_cancel (struct thread *thread)
   struct pqueue *queue = NULL;
   struct thread **thread_array = NULL;
   
+  //按类型获取要查找的链
   switch (thread->type)
     {
     case THREAD_READ:
@@ -982,16 +991,19 @@ thread_cancel (struct thread *thread)
 
   if (queue)
     {
+	  //需要自queue中移除
       assert(thread->index >= 0);
       assert(thread == queue->array[thread->index]);
       pqueue_remove_at(thread->index, queue);
     }
   else if (list)
     {
+	  //需要自链上移除
       thread_list_delete (list, thread);
     }
   else if (thread_array)
     {
+	  //需要自thread_array上移除
       thread_delete_fd (thread_array, thread);
     }
   else
@@ -1056,6 +1068,7 @@ thread_timer_wait (struct pqueue *queue, struct timeval *timer_val)
   return NULL;
 }
 
+//检查thread对应的fd是否在fdset中，如果在，将其挂接在master->ready链上
 static int
 thread_process_fds_helper (struct thread_master *m, struct thread *thread, thread_fd_set *fdset)
 {
@@ -1078,8 +1091,11 @@ thread_process_fds_helper (struct thread_master *m, struct thread *thread, threa
 
   if (fd_is_set (THREAD_FD (thread), fdset))
     {
+	  //thread对应的fd在fdset中，将其自read/write fd数组中移除
       fd_clear_read_write (THREAD_FD (thread), mfdset);
+      //将thead自对应的array中移除
       thread_delete_fd (thread_array, thread);
+      //将其加入ready链
       thread_list_add (&m->ready, thread);
       thread->type = THREAD_READY;
       return 1;
@@ -1092,6 +1108,8 @@ thread_process_fds (struct thread_master *m, thread_fd_set *rset, thread_fd_set 
 {
   int ready = 0, index;
 
+  //遍历master所有需要read,write的thread,检查其相关的fd是否位于rset,wset中
+  //如果在，将此thread存放在master->ready链上，准备触发
   for (index = 0; index < m->fd_limit && ready < num; ++index)
     {
       ready += thread_process_fds_helper (m, m->read[index], rset);
@@ -1109,11 +1127,16 @@ thread_timer_process (struct pqueue *queue, struct timeval *timenow)
   
   while (queue->size)
     {
+	  //获取最小堆上的第一个元素
       thread = queue->array[0];
       if (timeval_cmp (*timenow, thread->u.sands) < 0)
+    	  //返回已出队的数目
         return ready;
+
+      //timer已过期，将其自队列中移除
       pqueue_dequeue(queue);
       thread->type = THREAD_READY;
+      //将timer添加至ready链上
       thread_list_add (&thread->master->ready, thread);
       ready++;
     }
@@ -1124,6 +1147,7 @@ thread_timer_process (struct pqueue *queue, struct timeval *timenow)
 static unsigned int
 thread_process (struct thread_list *list)
 {
+  //将list中的内容添加至master的ready链表
   struct thread *thread;
   struct thread *next;
   unsigned int ready = 0;
@@ -1131,6 +1155,7 @@ thread_process (struct thread_list *list)
   for (thread = list->head; thread; thread = next)
     {
       next = thread->next;
+      //由于是单链表，故需要自旧链上摘除掉
       thread_list_delete (list, thread);
       thread->type = THREAD_READY;
       thread_list_add (&thread->master->ready, thread);
@@ -1140,6 +1165,7 @@ thread_process (struct thread_list *list)
 }
 
 /* Fetch next ready thread. */
+//获取一个待触发的任务
 static struct thread *
 thread_fetch (struct thread_master *m)
 {
@@ -1157,11 +1183,13 @@ thread_fetch (struct thread_master *m)
       int num = 0;
 
       /* Signals pre-empt everything */
+      //统一处理信号（针对触发的，调用其对应的回调）
       quagga_sigevent_process ();
        
       /* Drain the ready queue of already scheduled jobs, before scheduling
        * more.
        */
+      //如果ready链上有元素，则自ready链上摘取一个
       if ((thread = thread_trim_head (&m->ready)) != NULL)
         return thread;
       
@@ -1171,6 +1199,7 @@ thread_fetch (struct thread_master *m)
        */
        
       /* Normal event are the next highest priority.  */
+      //将m->event链上的元素移至master->ready链
       thread_process (&m->event);
       
       /* Structure copy.  */
@@ -1181,6 +1210,7 @@ thread_fetch (struct thread_master *m)
       /* Calculate select wait timer if nothing else to do */
       if (m->ready.count == 0)
         {
+    	  //获取select应等待的时间（如果有timer,则等待时间应为timer的最近触发时间）
           quagga_get_relative (NULL);
           timer_wait = thread_timer_wait (m->timer, &timer_val);
           timer_wait_bg = thread_timer_wait (m->background, &timer_val_bg);
@@ -1190,6 +1220,7 @@ thread_fetch (struct thread_master *m)
             timer_wait = timer_wait_bg;
         }
       
+      //将read,write,except对应的fd集合放入select等待触发
       num = fd_select (FD_SETSIZE, &readfd, &writefd, &exceptfd, timer_wait);
       
       /* Signals should get quick treatment */
@@ -1204,10 +1235,14 @@ thread_fetch (struct thread_master *m)
       /* Check foreground timers.  Historically, they have had higher
          priority than I/O threads, so let's push them onto the ready
 	 list in front of the I/O threads. */
+      //更新时间relative_time
       quagga_get_relative (NULL);
+
+      //定时器处理，用当前时间检查已过期的timer,将其存放在ready链上
       thread_timer_process (m->timer, &relative_time);
       
       /* Got IO, process it */
+      //将可read,write的thread添加至master->ready链上
       if (num > 0)
         thread_process_fds (m, &readfd, &writefd, num);
 
@@ -1221,6 +1256,7 @@ thread_fetch (struct thread_master *m)
 #endif
 
       /* Background timer/events, lowest priority */
+      //处理低优先级的timer
       thread_timer_process (m->background, &relative_time);
       
       if ((thread = thread_trim_head (&m->ready)) != NULL)
@@ -1258,6 +1294,7 @@ thread_should_yield (struct thread *thread)
   return ((t > THREAD_YIELD_TIME_SLOT) ? t : 0);
 }
 
+//设置real时间
 void
 thread_getrusage (RUSAGE_T *r)
 {
@@ -1300,6 +1337,7 @@ thread_call (struct thread *thread)
   */
   if (!thread->hist)
     {
+	  //未记录在cpu_record中，将其记入
       struct cpu_thread_history tmp;
       
       tmp.func = thread->func;
@@ -1312,13 +1350,16 @@ thread_call (struct thread *thread)
   GETRUSAGE (&before);
   thread->real = before.real;
 
+  //设置当前正在触发的thread
   thread_current = thread;
+  //触发thread
   (*thread->func) (thread);
   thread_current = NULL;
 
   GETRUSAGE (&after);
 
   realtime = thread_consumed_time (&after, &before, &cputime);
+  //记录此thread回调使用的总体时间
   thread->hist->real.total += realtime;
   if (thread->hist->real.max < realtime)
     thread->hist->real.max = realtime;
@@ -1346,6 +1387,7 @@ thread_call (struct thread *thread)
     }
 #endif /* CONSUMED_TIME_CHECK */
 
+  //归还thread对象
   thread_add_unuse (thread);
 }
 
@@ -1382,6 +1424,7 @@ void
 thread_main (struct thread_master *master)
 {
   struct thread *t;
+  //自master中获得一个event,处理这个event
   while ((t = thread_fetch (master)))
     thread_call (t);
 }

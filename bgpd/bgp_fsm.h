@@ -62,6 +62,7 @@ Software Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
 #define BGP_EVENT_ADD(P,E)			\
   do {						\
     if ((P)->status != Deleted)			\
+	/*针对peer添加event,event处理函数为bgp_event*/\
       thread_add_event (bm->master, bgp_event, (P), (E)); \
   } while (0)
 

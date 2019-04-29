@@ -54,15 +54,19 @@ typedef fd_set thread_fd_set;
 /* Master of the theads. */
 struct thread_master
 {
+  //记录需要read的thread
   struct thread **read;
+  //记录需要write的thread
   struct thread **write;
   struct pqueue *timer;
-  struct thread_list event;
+  struct thread_list event;//event链表（高优先级）
   struct thread_list ready;
   struct thread_list unuse;
-  struct pqueue *background;
+  struct pqueue *background;//记录低优先级的timer及event
   int fd_limit;
+  //记录需要read的fd
   thread_fd_set readfd;
+  //记录需要write的fd
   thread_fd_set writefd;
   thread_fd_set exceptfd;
   unsigned long alloc;
@@ -96,10 +100,10 @@ struct thread
 struct cpu_thread_history 
 {
   int (*func)(struct thread *);
-  unsigned int total_calls;
+  unsigned int total_calls;//总调用次数
   struct time_stats
   {
-    unsigned long total, max;
+    unsigned long total/*总时间*/, max/*最大单次时间*/;
   } real;
 #ifdef HAVE_RUSAGE
   struct time_stats cpu;
@@ -170,8 +174,9 @@ enum quagga_clkid {
 #define THREAD_WRITE_OFF(thread)  THREAD_OFF(thread)
 #define THREAD_TIMER_OFF(thread)  THREAD_OFF(thread)
 
-#define debugargdef  const char *funcname, const char *schedfrom, int fromln
+#define debugargdef  const char *funcname/*函数名称*/, const char *schedfrom/*文件名称*/, int fromln/*行号*/
 
+//新建read 任务
 #define thread_add_read(m,f,a,v) funcname_thread_add_read(m,f,a,v,#f,__FILE__,__LINE__)
 #define thread_add_write(m,f,a,v) funcname_thread_add_write(m,f,a,v,#f,__FILE__,__LINE__)
 #define thread_add_timer(m,f,a,v) funcname_thread_add_timer(m,f,a,v,#f,__FILE__,__LINE__)

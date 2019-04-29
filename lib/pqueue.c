@@ -164,7 +164,9 @@ void *
 pqueue_dequeue (struct pqueue *queue)
 {
   void *data = queue->array[0];
+  //将堆中最后一个元素放置在0号位置
   queue->array[0] =  queue->array[--queue->size];
+  //向下调整堆
   trickle_down (0, queue);
   return data;
 }

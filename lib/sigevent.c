@@ -57,6 +57,7 @@ quagga_signal_handler (int signo)
   int i;
   struct quagga_signal_t *sig;
   
+  //查找signo信号对应的结构体，指明此信号被触发
   for (i = 0; i < sigmaster.sigc; i++)
     {
       sig = &(sigmaster.signals[i]);
@@ -65,6 +66,7 @@ quagga_signal_handler (int signo)
         sig->caught = 1;
     }
   
+  //打上捕获标记，放在loop中统一处理
   sigmaster.caught = 1;
 } 
 
@@ -100,7 +102,7 @@ quagga_sigevent_process (void)
       /* must not read or set sigmaster.caught after here,
        * race condition with per-sig caught flags if one does
        */
-      
+      //针对捕获的信号，逐个处理其对应的回调函数
       for (i = 0; i < sigmaster.sigc; i++)
         {
           sig = &(sigmaster.signals[i]);
@@ -146,6 +148,7 @@ signal_set (int signo)
   struct sigaction sig;
   struct sigaction osig;
 
+  //设置指定信号signo的处理函数
   sig.sa_handler = &quagga_signal_handler;
   sigfillset (&sig.sa_mask);
   sig.sa_flags = 0;
@@ -348,6 +351,7 @@ signal_init (struct thread_master *m, int sigc,
      the application. */
   trap_default_signals();
   
+  //注册signals数组中所有信号的响应函数为quagga_signal_handler
   while (i < sigc)
     {
       sig = &signals[i];

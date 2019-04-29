@@ -182,6 +182,7 @@ bgp_set_socket_ttl (struct peer *peer, int bgp_sock)
 }
 
 /* Accept bgp connection. */
+//接受一个bgp peer的连接
 static int
 bgp_accept (struct thread *thread)
 {
@@ -200,6 +201,7 @@ bgp_accept (struct thread *thread)
       zlog_err ("accept_sock is nevative value %d", accept_sock);
       return -1;
     }
+  //因框架原因，这里需要对listener fd重新注册
   listener->thread = thread_add_read (bm->master, bgp_accept, listener, accept_sock);
 
   /* Accept client connection. */
@@ -209,6 +211,7 @@ bgp_accept (struct thread *thread)
       zlog_err ("[Error] BGP socket accept failed (%s)", safe_strerror (errno));
       return -1;
     }
+  //置为非阻塞
   set_nonblocking (bgp_sock);
 
   /* Set socket send buffer size */
@@ -225,6 +228,7 @@ bgp_accept (struct thread *thread)
    */
   if (! peer1 || peer1->status == Idle || peer1->status > Established)
     {
+	  //如果未被添加进peer表，则直接关闭socket(bgp不支持主动发现，他的peer均需要配置）
       if (BGP_DEBUG (events, EVENTS))
 	{
 	  if (! peer1)
@@ -274,6 +278,7 @@ bgp_accept (struct thread *thread)
     SET_FLAG (peer->sflags, PEER_STATUS_ACCEPT_PEER);
   }
 
+  //触发事件，收到peer的连接
   BGP_EVENT_ADD (peer, TCP_connection_open);
 
   return 0;
@@ -457,6 +462,7 @@ bgp_listener (int sock, struct sockaddr *sa, socklen_t salen)
   if (bgpd_privs.change (ZPRIVS_RAISE))
     zlog_err ("%s: could not raise privs", __func__);
 
+  //设置tos
 #ifdef IPTOS_PREC_INTERNETCONTROL
   if (sa->sa_family == AF_INET)
     setsockopt_ipv4_tos (sock, IPTOS_PREC_INTERNETCONTROL);
@@ -466,6 +472,7 @@ bgp_listener (int sock, struct sockaddr *sa, socklen_t salen)
 
   sockopt_v6only (sa->sa_family, sock);
 
+  //bind地址
   ret = bind (sock, sa, salen);
   en = errno;
   if (bgpd_privs.change (ZPRIVS_LOWER))
@@ -477,6 +484,7 @@ bgp_listener (int sock, struct sockaddr *sa, socklen_t salen)
       return ret;
     }
 
+  //监听
   ret = listen (sock, 3);
   if (ret < 0)
     {
@@ -487,6 +495,7 @@ bgp_listener (int sock, struct sockaddr *sa, socklen_t salen)
   listener = XMALLOC (MTYPE_BGP_LISTENER, sizeof(*listener));
   listener->fd = sock;
   memcpy(&listener->su, sa, salen);
+  //增加read 任务（处理对端连接的接入）
   listener->thread = thread_add_read (bm->master, bgp_accept, listener, sock);
   listnode_add (bm->listen_sockets, listener);
 
@@ -522,9 +531,11 @@ bgp_socket (unsigned short port, const char *address)
     {
       int sock;
 
+      //跳过非inet,inet6的地址
       if (ainfo->ai_family != AF_INET && ainfo->ai_family != AF_INET6)
 	continue;
      
+      //打开对应的socket
       sock = socket (ainfo->ai_family, ainfo->ai_socktype, ainfo->ai_protocol);
       if (sock < 0)
 	{
@@ -533,6 +544,7 @@ bgp_socket (unsigned short port, const char *address)
 	}
 	
       /* if we intend to implement ttl-security, this socket needs ttl=255 */
+      //设置ttl为	255
       sockopt_ttl (ainfo->ai_family, sock, MAXTTL);
       
       ret = bgp_listener (sock, ainfo->ai_addr, ainfo->ai_addrlen);

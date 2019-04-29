@@ -2201,6 +2201,7 @@ bgp_get (struct bgp **bgp_val, as_t *as, const char *name)
   if (list_isempty(bm->bgp)
       && !bgp_option_check (BGP_OPT_NO_LISTEN))
     {
+	  //bgp监听指定地址
       if (bgp_socket (bm->port, bm->address) < 0)
 	return BGP_ERR_INVALID_VALUE;
     }
@@ -2339,6 +2340,7 @@ bgp_free (struct bgp *bgp)
   XFREE (MTYPE_BGP, bgp);
 }
 
+//检查给定的地址是否已被添加进peer列表
 struct peer *
 peer_lookup (struct bgp *bgp, union sockunion *su)
 {
@@ -2347,6 +2349,7 @@ peer_lookup (struct bgp *bgp, union sockunion *su)
 
   if (bgp != NULL)
     {
+	  //给定bgp时，在bpg集合中查询
       for (ALL_LIST_ELEMENTS (bgp->peer, node, nnode, peer))
         if (sockunion_same (&peer->su, su)
             && ! CHECK_FLAG (peer->sflags, PEER_STATUS_ACCEPT_PEER))
@@ -2354,9 +2357,11 @@ peer_lookup (struct bgp *bgp, union sockunion *su)
     }
   else if (bm->bgp != NULL)
     {
+	  //在master的所有bgp实体中查询
       struct listnode *bgpnode, *nbgpnode;
   
       for (ALL_LIST_ELEMENTS (bm->bgp, bgpnode, nbgpnode, bgp))
+    	 //针对一个bgp实体的所有peer表进行查询
         for (ALL_LIST_ELEMENTS (bgp->peer, node, nnode, peer))
           if (sockunion_same (&peer->su, su)
               && ! CHECK_FLAG (peer->sflags, PEER_STATUS_ACCEPT_PEER))

@@ -396,6 +396,7 @@ main (int argc, char **argv)
   zprivs_init (&zserv_privs);
 
   /* Vty related initialize. */
+  //初始化所有信号的处理函数为quagga_signal_handler
   signal_init (zebrad.master, array_size(zebra_signals), zebra_signals);
   cmd_init (1);
   vty_init (zebrad.master);

@@ -72,6 +72,7 @@ static void hash_expand (struct hash *hash)
   if (new_index == NULL)
     return;
 
+  //遍历旧表，将旧表里的元素调整到new_index中
   for (i = 0; i < hash->size; i++)
     for (hb = hash->index[i]; hb; hb = hbnext)
       {
@@ -119,17 +120,20 @@ hash_get (struct hash *hash, void *data, void * (*alloc_func) (void *))
   unsigned int len;
   struct hash_backet *backet;
 
+  //确认hash桶
   key = (*hash->hash_key) (data);
   index = key & (hash->size - 1);
   len = 0;
 
+  //在桶上查找
   for (backet = hash->index[index]; backet != NULL; backet = backet->next)
     {
       if (backet->key == key && (*hash->hash_cmp) (backet->data, data))
 	return backet->data;
-      ++len;
+      ++len;//记录冲突链长度
     }
 
+  //没有查找到，需要添加进bucket
   if (alloc_func)
     {
       newdata = (*alloc_func) (data);
@@ -138,6 +142,7 @@ hash_get (struct hash *hash, void *data, void * (*alloc_func) (void *))
 
       if (len > HASH_THRESHOLD && !hash->no_expand)
 	{
+    	  //hash表扩展
 	  hash_expand (hash);
 	  index = key & (hash->size - 1);
 	}
@@ -145,6 +150,7 @@ hash_get (struct hash *hash, void *data, void * (*alloc_func) (void *))
       backet = XMALLOC (MTYPE_HASH_BACKET, sizeof (struct hash_backet));
       backet->data = newdata;
       backet->key = key;
+      //插入到桶头部
       backet->next = hash->index[index];
       hash->index[index] = backet;
       hash->count++;

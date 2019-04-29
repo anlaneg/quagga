@@ -43,7 +43,7 @@ struct bgp_master
   struct work_queue *process_rsclient_queue;
   
   /* Listening sockets */
-  struct list *listen_sockets;
+  struct list *listen_sockets;//记录已监听的socket
   
   /* BGP port number.  */
   u_int16_t port;
@@ -78,7 +78,7 @@ struct bgp
   struct peer *peer_self;
 
   /* BGP peer. */
-  struct list *peer;
+  struct list *peer;//记录所有pgp peer
 
   /* BGP peer group.  */
   struct list *group;

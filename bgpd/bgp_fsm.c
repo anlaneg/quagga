@@ -993,8 +993,8 @@ bgp_ignore (struct peer *peer)
 
 /* Finite State Machine structure */
 static const struct {
-  int (*func) (struct peer *);
-  int next_state;
+  int (*func) (struct peer *);//状态迁移时的回调
+  int next_state;//在指定状态收到e事件，则下一状态
 } FSM [BGP_STATUS_MAX - 1][BGP_EVENTS_MAX - 1] = 
 {
   {
@@ -1166,6 +1166,7 @@ static const char *bgp_event_str[] =
 };
 
 /* Execute event process. */
+//处理bgp的事件
 int
 bgp_event (struct thread *thread)
 {
@@ -1178,8 +1179,13 @@ bgp_event (struct thread *thread)
   event = THREAD_VAL (thread);
 
   /* Logging this event. */
+  //status是由1开始编号的，event也是由1开始编号的，但存放在数组时是由0
+  //位置开始存放的，故状态机在status状态下（等价于FSM[status-1])收到event
+  //(等价于FSM[][event-1])
+  //取当前状态下，遇到event事件，需要迁移到next_state
   next = FSM [peer->status -1][event - 1].next_state;
 
+  //如果确实需要发生状态变迁，则显示log
   if (BGP_DEBUG (fsm, FSM) && peer->status != next)
     plog_debug (peer->log, "%s [FSM] %s (%s->%s)", peer->host, 
 	       bgp_event_str[event],
@@ -1187,6 +1193,7 @@ bgp_event (struct thread *thread)
 	       LOOKUP (bgp_status_msg, next));
 
   /* Call function. */
+  //如有状态变迁函数，则调用状态变迁函数
   if (FSM [peer->status -1][event - 1].func)
     ret = (*(FSM [peer->status - 1][event - 1].func))(peer);
 
@@ -1194,10 +1201,12 @@ bgp_event (struct thread *thread)
   if (ret >= 0)
     {
       /* If status is changed. */
+	  //如果实际peer的状态与期望的状态不一致，则
       if (next != peer->status)
         bgp_fsm_change_status (peer, next);
       
       /* Make sure timer is set. */
+      //处理peer的timer
       bgp_timer_set (peer);
     }
   
