@@ -205,7 +205,7 @@ bgp_accept (struct thread *thread)
   listener->thread = thread_add_read (bm->master, bgp_accept, listener, accept_sock);
 
   /* Accept client connection. */
-  bgp_sock = sockunion_accept (accept_sock, &su);
+  bgp_sock = sockunion_accept (accept_sock, &su/*发起方地址*/);
   if (bgp_sock < 0)
     {
       zlog_err ("[Error] BGP socket accept failed (%s)", safe_strerror (errno));
@@ -255,6 +255,7 @@ bgp_accept (struct thread *thread)
     peer = peer_create_accept (peer1->bgp);
     peer->su = su;
     peer->fd = bgp_sock;
+    //将peer状态更新为Active
     peer->status = Active;
 
     /* Config state that should affect OPEN packet must be copied over */
@@ -278,7 +279,8 @@ bgp_accept (struct thread *thread)
     SET_FLAG (peer->sflags, PEER_STATUS_ACCEPT_PEER);
   }
 
-  //触发事件，收到peer的连接
+  //触发事件，收到peer的连接请求（向其发送hello报文）
+  //Active 状态触发 TCP_connection_open事件
   BGP_EVENT_ADD (peer, TCP_connection_open);
 
   return 0;

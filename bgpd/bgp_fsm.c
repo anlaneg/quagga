@@ -656,6 +656,7 @@ bgp_stop_with_notify (struct peer *peer, u_char code, u_char sub_code)
 static int
 bgp_connect_success (struct peer *peer)
 {
+	//peer发送消息给我们，我们认出了此peer,向其发送Hello消息
   struct peer *realpeer;
   
   if (peer->fd < 0)
@@ -664,6 +665,8 @@ bgp_connect_success (struct peer *peer)
 		peer->fd);
       return -1;
     }
+
+  //触发自此fd的读事件
   BGP_READ_ON (peer->t_read, bgp_read, peer->fd);
 
   if (! CHECK_FLAG (peer->sflags, PEER_STATUS_ACCEPT_PEER))
@@ -701,6 +704,7 @@ bgp_connect_success (struct peer *peer)
         }
    }
   
+  //向对端发送hello消息
   bgp_open_send (peer);
 
   return 0;
@@ -812,9 +816,11 @@ static int
 bgp_fsm_open (struct peer *peer)
 {
   /* Send keepalive and make keepalive timer */
+	//我们发送了hello,也收到了对端发送过来的hello,发送keepalive报文
   bgp_keepalive_send (peer);
 
   /* Reset holdtimer value. */
+  //重置holdtimer
   BGP_TIMER_OFF (peer->t_holdtime);
 
   return 0;
@@ -1003,6 +1009,7 @@ static const struct {
        bgp_start(). */
     {bgp_start,  Connect},	/* BGP_Start                    */
     {bgp_stop,   Idle},		/* BGP_Stop                     */
+	//idle状态，收到peer连接请求（完成握手后，走bgp_stop)
     {bgp_stop,   Idle},		/* TCP_connection_open          */
     {bgp_stop,   Idle},		/* TCP_connection_closed        */
     {bgp_ignore, Idle},		/* TCP_connection_open_failed   */
@@ -1039,6 +1046,7 @@ static const struct {
     /* Active, */
     {bgp_ignore,  Active},	/* BGP_Start                    */
     {bgp_stop,    Idle},	/* BGP_Stop                     */
+	//收到对端的连接，发送hello,转OpenSent
     {bgp_connect_success, OpenSent}, /* TCP_connection_open          */
     {bgp_stop,    Idle},	/* TCP_connection_closed        */
     {bgp_ignore,  Active},	/* TCP_connection_open_failed   */
@@ -1064,6 +1072,7 @@ static const struct {
     {bgp_ignore,  Idle},	/* ConnectRetry_timer_expired   */
     {bgp_fsm_holdtime_expire, Idle},	/* Hold_Timer_expired           */
     {bgp_ignore,  Idle},	/* KeepAlive_timer_expired      */
+	//收到对端hello,发送keepalive报文到OpenConfirm
     {bgp_fsm_open,    OpenConfirm},	/* Receive_OPEN_message         */
     {bgp_fsm_event_error, Idle}, /* Receive_KEEPALIVE_message    */
     {bgp_fsm_event_error, Idle}, /* Receive_UPDATE_message       */
@@ -1083,6 +1092,7 @@ static const struct {
     {bgp_fsm_holdtime_expire, Idle},	/* Hold_Timer_expired           */
     {bgp_ignore,  OpenConfirm},	/* KeepAlive_timer_expired      */
     {bgp_ignore,  Idle},	/* Receive_OPEN_message         */
+	//收到对端发送keepalive报文，？？？？
     {bgp_establish, Established}, /* Receive_KEEPALIVE_message    */
     {bgp_ignore,  Idle},	/* Receive_UPDATE_message       */
     {bgp_stop_with_error, Idle}, /* Receive_NOTIFICATION_message */
@@ -1102,6 +1112,7 @@ static const struct {
     {bgp_fsm_keepalive_expire, Established}, /* KeepAlive_timer_expired      */
     {bgp_stop,                    Clearing}, /* Receive_OPEN_message         */
     {bgp_fsm_keepalive,        Established}, /* Receive_KEEPALIVE_message    */
+	//收到update消息
     {bgp_fsm_update,           Established}, /* Receive_UPDATE_message       */
     {bgp_stop_with_error,         Clearing}, /* Receive_NOTIFICATION_message */
     {bgp_ignore,                      Idle}, /* Clearing_Completed           */

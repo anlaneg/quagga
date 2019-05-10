@@ -663,7 +663,7 @@ strict_capability_same (struct peer *peer)
  * Returns  0 if no as4 found, as4cap value otherwise.
  */
 as_t
-peek_for_as4_capability (struct peer *peer, u_char length)
+peek_for_as4_capability (struct peer *peer, u_char length/*选项参数总长度*/)
 {
   struct stream *s = BGP_INPUT (peer);
   size_t orig_getp = stream_get_getp (s);
@@ -672,7 +672,7 @@ peek_for_as4_capability (struct peer *peer, u_char length)
   
   /* The full capability parser will better flag the error.. */
   if (STREAM_READABLE(s) < length)
-    return 0;
+    return 0;//报文格式有误，不处理
 
   if (BGP_DEBUG (as4, AS4))
     zlog_info ("%s [AS4] rcv OPEN w/ OPTION parameter len: %u,"
@@ -683,6 +683,7 @@ peek_for_as4_capability (struct peer *peer, u_char length)
    */
   while (stream_get_getp(s) < end) 
     {
+	  //optional parameter是一个type(1 byte),length(1 byte),value(length byte)结构的数据
       u_char opt_type;
       u_char opt_length;
       
@@ -696,8 +697,9 @@ peek_for_as4_capability (struct peer *peer, u_char length)
       
       /* Option length check. */
       if (stream_get_getp (s) + opt_length > end)
-        goto end;
+        goto end;//格式有误，跳出
       
+      //仅处理OPEN_OPT_CAP选项，其它忽略
       if (opt_type == BGP_OPEN_OPT_CAP)
         {
           unsigned long capd_start = stream_get_getp (s);

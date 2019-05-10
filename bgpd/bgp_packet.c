@@ -64,7 +64,7 @@ bgp_packet_set_marker (struct stream *s, u_char type)
     stream_putc (s, 0xff);
 
   /* Dummy total length. This field is should be filled in later on. */
-  stream_putw (s, 0);
+  stream_putw (s, 0);//存入假的total length
 
   /* BGP packet type. */
   stream_putc (s, type);
@@ -82,6 +82,7 @@ bgp_packet_set_size (struct stream *s)
 
   /* Preserve current pointer. */
   cp = stream_get_endp (s);
+  //填充reserve的total length
   stream_putw_at (s, BGP_MARKER_SIZE, cp);
 
   return cp;
@@ -92,6 +93,7 @@ static void
 bgp_packet_add (struct peer *peer, struct stream *s)
 {
   /* Add packet to the end of list. */
+  //将报文添加到先进先出队列
   stream_fifo_push (peer->obuf, s);
 }
 
@@ -612,6 +614,7 @@ bgp_write_packet (struct peer *peer)
   struct stream *s = NULL;
   struct bgp_advertise *adv;
 
+  //取出队首待发送报文
   s = stream_fifo_head (peer->obuf);
   if (s)
     return s;
@@ -682,6 +685,7 @@ bgp_write_proceed (struct peer *peer)
   struct bgp_advertise *adv;
 
   if (stream_fifo_head (peer->obuf))
+	  //仍有待发送报文，返回1
     return 1;
 
   for (afi = AFI_IP; afi < AFI_MAX; afi++)
@@ -702,6 +706,7 @@ bgp_write_proceed (struct peer *peer)
 int
 bgp_write (struct thread *thread)
 {
+	//将数据报文发送给bgp的对端
   struct peer *peer;
   u_char type;
   struct stream *s; 
@@ -731,6 +736,7 @@ bgp_write (struct thread *thread)
       int writenum;
 
       /* Number of bytes to be sent.  */
+      //待发送的字节数
       writenum = stream_get_endp (s) - stream_get_getp (s);
 
       /* Call write() system call.  */
@@ -741,6 +747,7 @@ bgp_write (struct thread *thread)
 	  if (ERRNO_IO_RETRY(errno))
 		break;
 
+	  //触发发送tcp报文失败event
           BGP_EVENT_ADD (peer, TCP_fatal_error);
 	  return 0;
 	}
@@ -748,10 +755,12 @@ bgp_write (struct thread *thread)
       if (num != writenum)
 	{
 	  /* Partial write */
+      //仅完成了部分发送，移动待发送指针
 	  stream_forward_getp (s, num);
 	  break;
 	}
 
+      //分析刚发送的消息type,完成统计计数更新
       /* Retrieve BGP packet type. */
       stream_set_getp (s, BGP_MARKER_SIZE + 2);
       type = stream_getc (s);
@@ -784,12 +793,15 @@ bgp_write (struct thread *thread)
 	}
 
       /* OK we send packet so delete it. */
+      //发送成功，可以移除掉报文了
       bgp_packet_delete (peer);
     }
   while (++count < BGP_WRITE_PACKET_MAX &&
+		  /*继续发送直到发送超限或者已完成所有发送*/
 	 (s = bgp_write_packet (peer)) != NULL);
   
   if (bgp_write_proceed (peer))
+	  //仍有报文待发送，触发write事件
     BGP_WRITE_ON (peer->t_write, bgp_write, peer->fd);
 
  done:
@@ -849,6 +861,7 @@ bgp_write_notify (struct peer *peer)
 void
 bgp_keepalive_send (struct peer *peer)
 {
+	//构造并发送keepalive报文（keepalive报文只有common header)
   struct stream *s;
   int length;
 
@@ -879,6 +892,7 @@ bgp_keepalive_send (struct peer *peer)
 void
 bgp_open_send (struct peer *peer)
 {
+	//构建open类型报文，并触发对外发送event
   struct stream *s;
   int length;
   u_int16_t send_holdtime;
@@ -928,6 +942,7 @@ bgp_open_send (struct peer *peer)
   /* Add packet to the peer. */
   bgp_packet_add (peer, s);
 
+  //触发针对此peer的write事件
   BGP_WRITE_ON (peer->t_write, bgp_write, peer->fd);
 }
 
@@ -1039,6 +1054,7 @@ bgp_notify_send_with_data (struct peer *peer, u_char code, u_char sub_code,
 void
 bgp_notify_send (struct peer *peer, u_char code, u_char sub_code)
 {
+  //bgp notify报文发送给peer
   bgp_notify_send_with_data (peer, code, sub_code, NULL, 0);
 }
 
@@ -1317,12 +1333,21 @@ bgp_open_receive (struct peer *peer, bgp_size_t size)
 
   realpeer = NULL;
   
+  /**
+   * bgp packet format
+   * version (1byte)
+   * My Autonomous System(2byte)
+   * Hold Time(2byte)
+   * BGP Identifier (4byte)
+   * Opt Parm Length (1byte)
+   * Optional Parameters (N byte)
+   */
   /* Parse open packet. */
   version = stream_getc (peer->ibuf);
-  memcpy (notify_data_remote_as, stream_pnt (peer->ibuf), 2);
+  memcpy (notify_data_remote_as/*记录远端传入的as号*/, stream_pnt (peer->ibuf), 2);
   remote_as  = stream_getw (peer->ibuf);
   holdtime = stream_getw (peer->ibuf);
-  memcpy (notify_data_remote_id, stream_pnt (peer->ibuf), 4);
+  memcpy (notify_data_remote_id/*记录远端传入的bgp identifier*/, stream_pnt (peer->ibuf), 4);
   remote_id.s_addr = stream_get_ipv4 (peer->ibuf);
 
   /* Receive OPEN message log  */
@@ -1336,6 +1361,7 @@ bgp_open_receive (struct peer *peer, bgp_size_t size)
   
   /* BEGIN to read the capability here, but dont do it yet */
   mp_capability = 0;
+  //读取可选参数长度
   optlen = stream_getc (peer->ibuf);
   
   if (optlen != 0)
@@ -1688,6 +1714,7 @@ bgp_open_receive (struct peer *peer, bgp_size_t size)
   bgp_getsockname (peer);
   peer->rtt = sockopt_tcp_rtt (peer->fd);
 
+  //触发收到hello报文事件
   BGP_EVENT_ADD (peer, Receive_OPEN_message);
 
   peer->packet_size = 0;
@@ -2466,6 +2493,7 @@ bgp_read_packet (struct peer *peer)
   int nbytes;
   int readsize;
 
+  //获取本次要读取的长度
   readsize = peer->packet_size - stream_get_endp (peer->ibuf);
 
   /* If size is zero then return. */
@@ -2478,6 +2506,7 @@ bgp_read_packet (struct peer *peer)
   /* If read byte is smaller than zero then error occurred. */
   if (nbytes < 0) 
     {
+	  //读取失败
       /* Transient error should retry */
       if (nbytes == -2)
 	return -1;
@@ -2503,6 +2532,7 @@ bgp_read_packet (struct peer *peer)
   /* When read byte is zero : clear bgp peer and return */
   if (nbytes == 0) 
     {
+	  //对端关闭了连接
       if (BGP_DEBUG (events, EVENTS))
 	plog_debug (peer->log, "%s [Event] BGP connection closed fd %d",
 		   peer->host, peer->fd);
@@ -2585,6 +2615,7 @@ bgp_read (struct thread *thread)
   if (peer->packet_size == 0)
     peer->packet_size = BGP_HEADER_SIZE;
 
+  //缓存的内容过少，读取common header长度
   if (stream_get_endp (peer->ibuf) < BGP_HEADER_SIZE)
     {
       ret = bgp_read_packet (peer);
@@ -2593,7 +2624,14 @@ bgp_read (struct thread *thread)
       if (ret < 0) 
 	goto done;
 
+      /**
+       * bgp common header format
+       * marker (16 bytes)
+       * size (2 bytes)
+       * type (1 byte)
+       */
       /* Get size and type. */
+      //跳过marker字段
       stream_forward_getp (peer->ibuf, BGP_MARKER_SIZE);
       memcpy (notify_data_length, stream_pnt (peer->ibuf), 2);
       size = stream_getw (peer->ibuf);
@@ -2604,6 +2642,7 @@ bgp_read (struct thread *thread)
 		   peer->host, type, size - BGP_HEADER_SIZE);
 
       /* Marker check */
+      //open,keepalive类型报文检查marker必须为全1
       if (((type == BGP_MSG_OPEN) || (type == BGP_MSG_KEEPALIVE))
 	  && ! bgp_marker_all_one (peer->ibuf, BGP_MARKER_SIZE))
 	{
@@ -2620,6 +2659,7 @@ bgp_read (struct thread *thread)
 	  && type != BGP_MSG_ROUTE_REFRESH_OLD
 	  && type != BGP_MSG_CAPABILITY)
 	{
+    	  //不合法的报文类型
 	  if (BGP_DEBUG (normal, NORMAL))
 	    plog_debug (peer->log,
 		      "%s unknown message type 0x%02x",
@@ -2641,6 +2681,7 @@ bgp_read (struct thread *thread)
 	  || (type == BGP_MSG_ROUTE_REFRESH_OLD && size < BGP_MSG_ROUTE_REFRESH_MIN_SIZE)
 	  || (type == BGP_MSG_CAPABILITY && size < BGP_MSG_CAPABILITY_MIN_SIZE))
 	{
+    	  //报文长度必须与各类型的min,max要求一致
 	  if (BGP_DEBUG (normal, NORMAL))
 	    plog_debug (peer->log,
 		      "%s bad message length - %d for %s",
@@ -2655,9 +2696,10 @@ bgp_read (struct thread *thread)
 	}
 
       /* Adjust size to message length. */
-      peer->packet_size = size;
+      peer->packet_size = size;//记录本次收到的报文大小
     }
 
+  //读取剩余的内容
   ret = bgp_read_packet (peer);
   if (ret < 0) 
     goto done;
@@ -2669,6 +2711,7 @@ bgp_read (struct thread *thread)
   /* BGP packet dump function. */
   bgp_dump_packet (peer, type, peer->ibuf);
   
+  //获得bgp除去common header之后的报文长度
   size = (peer->packet_size - BGP_HEADER_SIZE);
 
   /* Read rest of the packet and call each sort of packet routine */
@@ -2701,6 +2744,7 @@ bgp_read (struct thread *thread)
     }
 
   /* Clear input buffer. */
+  //总是使packet_size清空为0
   peer->packet_size = 0;
   if (peer->ibuf)
     stream_reset (peer->ibuf);

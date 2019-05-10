@@ -58,6 +58,7 @@
              (unsigned long) (S)->getp, \
              (unsigned long) (S)->endp)\
 
+//getp位置小于等于endp（还有字符未读取）
 #define STREAM_VERIFY_SANE(S) \
   do { \
     if ( !(GETP_VALID(S, (S)->getp) && ENDP_VALID(S, (S)->endp)) ) \
@@ -310,11 +311,13 @@ stream_getc (struct stream *s)
   
   STREAM_VERIFY_SANE (s);
 
+  //确保还有一个字符可读取
   if (STREAM_READABLE(s) < sizeof (u_char))
     {
       STREAM_BOUND_WARN (s, "get char");
       return 0;
     }
+  //读取一个字符
   c = s->data[s->getp++];
   
   return c;
@@ -830,6 +833,7 @@ stream_read_try(struct stream *s, int fd, size_t size)
       return -1;
     }
 
+  //读取内容
   if ((nbytes = read(fd, s->data + s->endp, size)) >= 0)
     {
       s->endp += nbytes;

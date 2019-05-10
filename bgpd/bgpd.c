@@ -910,6 +910,7 @@ peer_create (union sockunion *su, struct bgp *bgp, as_t local_as,
   peer->su = *su;
   peer->local_as = local_as;
   peer->as = remote_as;
+  //记录当前bgp的router_id
   peer->local_id = bgp->router_id;
   peer->v_holdtime = bgp->default_holdtime;
   peer->v_keepalive = bgp->default_keepalive;
@@ -946,6 +947,7 @@ peer_create_accept (struct bgp *bgp)
 {
   struct peer *peer;
 
+  //构造peer,并将其加入到bgp->peer链上
   peer = peer_new (bgp);
   
   peer = peer_lock (peer); /* bgp peer list reference */

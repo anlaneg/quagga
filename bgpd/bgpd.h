@@ -167,7 +167,7 @@ struct bgp
   u_int32_t default_local_pref;
 
   /* BGP default timer.  */
-  u_int32_t default_holdtime;
+  u_int32_t default_holdtime;//默认的的holdtime
   u_int32_t default_keepalive;
 
   /* BGP graceful restart */
@@ -312,14 +312,14 @@ struct peer
   struct in_addr remote_id;
 
   /* Local router ID. */
-  struct in_addr local_id;
+  struct in_addr local_id;//本端的id号
 
   /* Peer specific RIB when configured as route-server-client. */
   struct bgp_table *rib[AFI_MAX][SAFI_MAX];
 
   /* Packet receive and send buffer. */
   struct stream *ibuf;
-  struct stream_fifo *obuf;
+  struct stream_fifo *obuf;//待发送fifo
   struct stream *work;
 
   /* We use a separate stream to encode MP_REACH_NLRI for efficient
@@ -336,6 +336,7 @@ struct peer
   uint16_t table_dump_index;
 
   /* Peer information */
+  //连接到peer的fd
   int fd;			/* File descriptor */
   int ttl;			/* TTL of TCP connection to the peer. */
   int rtt;			/* Estimated round-trip-time from TCP_INFO */
@@ -343,6 +344,7 @@ struct peer
   char *desc;			/* Description of the peer. */
   unsigned short port;          /* Destination port for peer */
   char *host;			/* Printable address of the peer. */
+  //peer地址
   union sockunion su;		/* Sockunion address of the peer. */
   time_t uptime;		/* Last Up/Down time */
   time_t readtime;		/* Last read time */
