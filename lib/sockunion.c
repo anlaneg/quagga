@@ -230,6 +230,7 @@ sockunion_socket (const union sockunion *su)
 }
 
 /* Return accepted new socket file descriptor. */
+//接受新的socket连接
 int
 sockunion_accept (int sock, union sockunion *su)
 {
@@ -354,6 +355,7 @@ sockunion_connect (int fd, const union sockunion *peersu, unsigned short port,
 }
 
 /* Make socket from sockunion union. */
+//创建su对应的socket
 int
 sockunion_stream_socket (union sockunion *su)
 {
@@ -371,9 +373,10 @@ sockunion_stream_socket (union sockunion *su)
 }
 
 /* Bind socket to specified address. */
+//绑定指定的地址及端口
 int
 sockunion_bind (int sock, union sockunion *su, unsigned short port, 
-		union sockunion *su_addr)
+		union sockunion *su_addr/*如果此地址为NULL，则绑定地址为ANY*/)
 {
   int size = 0;
   int ret;
@@ -415,6 +418,7 @@ sockunion_bind (int sock, union sockunion *su, unsigned short port,
   return ret;
 }
 
+//设置地址reuse
 int
 sockopt_reuseaddr (int sock)
 {
@@ -432,6 +436,7 @@ sockopt_reuseaddr (int sock)
 }
 
 #ifdef SO_REUSEPORT
+//设置port reuse
 int
 sockopt_reuseport (int sock)
 {

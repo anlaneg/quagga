@@ -5534,6 +5534,7 @@ bgp_config_write (struct vty *vty)
 void
 bgp_master_init (void)
 {
+    /*初始化bgp master*/
   memset (&bgp_master, 0, sizeof (struct bgp_master));
 
   bm = &bgp_master;
@@ -5562,6 +5563,7 @@ bgp_init (void)
   bgp_attr_init ();
   bgp_debug_init ();
   bgp_dump_init ();
+  //bgp路由初始化
   bgp_route_init ();
   bgp_route_map_init ();
   bgp_address_init ();

@@ -37,6 +37,7 @@ static void route_table_free (struct route_table *);
 struct route_table *
 route_table_init_with_delegate (route_table_delegate_t *delegate)
 {
+    /*初始化路由表*/
   struct route_table *rt;
 
   rt = XCALLOC (MTYPE_ROUTE_TABLE, sizeof (struct route_table));

@@ -28,6 +28,7 @@
 #define PIDFILE_MASK 0644
 #ifndef HAVE_FCNTL
 
+//生成pid文件
 pid_t
 pid_output (const char *path)
 {

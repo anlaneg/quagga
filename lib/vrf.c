@@ -71,6 +71,7 @@ static int have_netns_enabled = -1;
 static int have_netns(void)
 {
 #ifdef HAVE_NETNS
+    /*检查是否启用了namespace*/
   if (have_netns_enabled < 0)
     {
         int fd = open (VRF_DEFAULT_NAME, O_RDONLY);

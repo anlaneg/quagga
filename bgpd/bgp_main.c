@@ -108,9 +108,11 @@ char config_default[] = SYSCONFDIR BGP_DEFAULT_CONFIG;
 static int retain_mode = 0;
 
 /* Manually specified configuration file name.  */
+/*配置文件名称或者配置文件全路径*/
 char *config_file = NULL;
 
 /* Process ID saved for use by init system */
+/*pid文件全路径*/
 static const char *pid_file = PATH_BGPD_PID;
 
 /* VTY port number and address.  */
@@ -343,6 +345,7 @@ main (int argc, char **argv)
 {
   char *p;
   int opt;
+  /*是否使用daemon模式*/
   int daemon_mode = 0;
   int dryrun = 0;
   char *progname;
@@ -377,15 +380,18 @@ main (int argc, char **argv)
 	  daemon_mode = 1;
 	  break;
 	case 'f':
+	    /*配置文件名称或者配置文件全路径*/
 	  config_file = optarg;
 	  break;
         case 'i':
+            /*pid文件全路径*/
           pid_file = optarg;
           break;
 	case 'z':
 	  zclient_serv_path_set (optarg);
 	  break;
 	case 'p':
+	    /*设置bpf需要使用的端口号*/
 	  tmp_port = atoi (optarg);
 	  if (tmp_port <= 0 || tmp_port > 0xffff)
 	    bm->port = BGP_PORT_DEFAULT;
@@ -449,6 +455,7 @@ main (int argc, char **argv)
     memset (&bgpd_privs, 0, sizeof (bgpd_privs));
   zprivs_init (&bgpd_privs);
   cmd_init (1);
+  /*vty server初始化，接受用户端传入的命令，并进行执行响应*/
   vty_init (bm->master);
   memory_init ();
   vrf_init ();
@@ -461,6 +468,7 @@ main (int argc, char **argv)
 
   /* Start execution only if not in dry-run mode */
   if(dryrun)
+      /*仅解析检查配置，退出*/
     return(0);
   
   /* Turn into daemon if daemon_mode is set. */
@@ -485,6 +493,7 @@ main (int argc, char **argv)
 	       getpid ());
 
   /* Start finite state machine, here we go! */
+  /*开始bpf状态机处理*/
   thread_main (bm->master);
 
   /* Not reached. */

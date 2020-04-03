@@ -17142,6 +17142,7 @@ bgp_config_write_distance (struct vty *vty, struct bgp *bgp,
 }
 
 /* Allocate routing table structure and install commands. */
+//安装bgp路由命令
 void
 bgp_route_init (void)
 {

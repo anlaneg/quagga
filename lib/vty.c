@@ -1368,6 +1368,7 @@ vty_execute (struct vty *vty)
       vty_auth (vty, vty->buf);
       break;
     default:
+        /*执行vty命令*/
       ret = vty_command (vty, vty->buf);
       if (vty->type == VTY_TERM)
 	vty_hist_add (vty);
@@ -1426,6 +1427,7 @@ vty_buffer_reset (struct vty *vty)
 }
 
 /* Read data via vty socket. */
+//负责自vty socket中读取信息
 static int
 vty_read (struct thread *thread)
 {
@@ -1438,8 +1440,10 @@ vty_read (struct thread *thread)
   vty->t_read = NULL;
 
   /* Read raw data from socket */
+  /*读取n个字节*/
   if ((nbytes = read (vty->fd, buf, VTY_READ_BUFSIZ)) <= 0)
     {
+      //读取失败
       if (nbytes < 0)
 	{
 	  if (ERRNO_IO_RETRY(errno))
@@ -1556,9 +1560,11 @@ vty_read (struct thread *thread)
 	  continue;
 	}
 
+      //控制字符处理
       switch (buf[i])
 	{
 	case CONTROL('A'):
+	  //光标到行首
 	  vty_beginning_of_line (vty);
 	  break;
 	case CONTROL('B'):
@@ -1736,6 +1742,7 @@ vty_new_init (int vty_sock)
 }
 
 /* Create new vty structure. */
+//创建新的vty
 static struct vty *
 vty_create (int vty_sock, union sockunion *su)
 {
@@ -1790,6 +1797,7 @@ vty_create (int vty_sock, union sockunion *su)
   vty_prompt (vty);
 
   /* Add read/write thread. */
+  //收取vty的读写事件，并解析命令，运行命令
   vty_event (VTY_WRITE, vty_sock, vty);
   vty_event (VTY_READ, vty_sock, vty);
 
@@ -1857,6 +1865,7 @@ vty_stdio (void (*atclose)())
 }
 
 /* Accept connection from the network. */
+//vty server可读时调用，用于接入vty连接
 static int
 vty_accept (struct thread *thread)
 {
@@ -1872,32 +1881,39 @@ vty_accept (struct thread *thread)
   accept_sock = THREAD_FD (thread);
 
   /* We continue hearing vty socket. */
+  /*继续加入vty server的accept*/
   vty_event (VTY_SERV, accept_sock, NULL);
 
   memset (&su, 0, sizeof (union sockunion));
 
   /* We can handle IPv4 or IPv6 socket. */
+  //接入新的连接及对端地址
   vty_sock = sockunion_accept (accept_sock, &su);
   if (vty_sock < 0)
     {
       zlog_warn ("can't accept vty socket : %s", safe_strerror (errno));
       return -1;
     }
+  //置为非阻塞
   set_nonblocking(vty_sock);
 
+  /*设置对端地址*/
   sockunion2hostprefix (&su, &p);
 
   /* VTY's accesslist apply. */
   if (p.family == AF_INET && vty_accesslist_name)
     {
+      //如果有访问名单，检查对端是否可访问
       if ((acl = access_list_lookup (AFI_IP, vty_accesslist_name)) &&
 	  (access_list_apply (acl, &p) == FILTER_DENY))
 	{
 	  zlog (NULL, LOG_INFO, "Vty connection refused from %s",
 		sockunion2str (&su, buf, SU_ADDRSTRLEN));
+	  //不容许访问，关闭新接入的连接
 	  close (vty_sock);
 	  
 	  /* continue accepting connections */
+	  //bug，此时不需要再添加
 	  vty_event (VTY_SERV, accept_sock, NULL);
 	  
 	  return 0;
@@ -1908,6 +1924,7 @@ vty_accept (struct thread *thread)
   /* VTY's ipv6 accesslist apply. */
   if (p.family == AF_INET6 && vty_ipv6_accesslist_name)
     {
+      //ipv6的可访问检查
       if ((acl = access_list_lookup (AFI_IP6, vty_ipv6_accesslist_name)) &&
 	  (access_list_apply (acl, &p) == FILTER_DENY))
 	{
@@ -1923,6 +1940,7 @@ vty_accept (struct thread *thread)
     }
 #endif /* HAVE_IPV6 */
   
+  //容许对端接入，创建新的vty
   on = 1;
   ret = setsockopt (vty_sock, IPPROTO_TCP, TCP_NODELAY, 
 		    (char *) &on, sizeof (on));
@@ -2014,8 +2032,9 @@ vty_serv_sock_family (const char* addr, unsigned short port, int family)
   int accept_sock;
   void* naddr=NULL;
 
+  //填充su地址
   memset (&su, 0, sizeof (union sockunion));
-  su.sa.sa_family = family;
+  su.sa.sa_family = family;//填协议族
   if(addr)
     switch(family)
     {
@@ -2029,6 +2048,7 @@ vty_serv_sock_family (const char* addr, unsigned short port, int family)
 #endif	
     }
 
+  //填地址
   if(naddr)
     switch(inet_pton(family,addr,naddr))
     {
@@ -2051,6 +2071,7 @@ vty_serv_sock_family (const char* addr, unsigned short port, int family)
   sockopt_reuseport (accept_sock);
 
   /* Bind socket to universal address and given port. */
+  //绑定指定的地址
   ret = sockunion_bind (accept_sock, &su, port, naddr);
   if (ret < 0)
     {
@@ -2060,6 +2081,7 @@ vty_serv_sock_family (const char* addr, unsigned short port, int family)
     }
 
   /* Listen socket under queue 3. */
+  //开启监听
   ret = listen (accept_sock, 3);
   if (ret < 0) 
     {
@@ -2510,6 +2532,7 @@ vty_use_backup_config (char *fullpath)
 }
 
 /* Read up configuration file from file_name. */
+//自给定的文件中读取配置
 void
 vty_read_config (char *config_file,
                  char *config_default_dir)
@@ -2693,6 +2716,7 @@ vty_event (enum event event, int sock, struct vty *vty)
   switch (event)
     {
     case VTY_SERV:
+        /*添加vty server fd*/
       vty_serv_thread = thread_add_read (vty_master, vty_accept, vty, sock);
       vector_set_index (Vvty_serv_thread, sock, vty_serv_thread);
       break;
@@ -2709,6 +2733,7 @@ vty_event (enum event event, int sock, struct vty *vty)
       break;
 #endif /* VTYSH */
     case VTY_READ:
+        //创建vty shell的读回调
       vty->t_read = thread_add_read (vty_master, vty_read, vty, sock);
 
       /* Time out treatment. */
@@ -2721,6 +2746,7 @@ vty_event (enum event event, int sock, struct vty *vty)
 	}
       break;
     case VTY_WRITE:
+        //创建vty shell的写回调
       if (! vty->t_write)
 	vty->t_write = thread_add_write (vty_master, vty_flush, vty, sock);
       break;

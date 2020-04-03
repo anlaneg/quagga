@@ -61,7 +61,7 @@ struct thread_master
   struct pqueue *timer;
   struct thread_list event;//event链表（高优先级）
   struct thread_list ready;
-  struct thread_list unuse;
+  struct thread_list unuse;/*用于串连没有使用的struct thread*/
   struct pqueue *background;//记录低优先级的timer及event
   int fd_limit;
   //记录需要read的fd
@@ -69,7 +69,7 @@ struct thread_master
   //记录需要write的fd
   thread_fd_set writefd;
   thread_fd_set exceptfd;
-  unsigned long alloc;
+  unsigned long alloc;/*申请的thread总数*/
 };
 
 typedef unsigned char thread_type;
@@ -77,13 +77,18 @@ typedef unsigned char thread_type;
 /* Thread itself. */
 struct thread
 {
+   /*thread类型，例如THREAD_READ*/
   thread_type type;		/* thread type */
   thread_type add_type;		/* thread type */
   struct thread *next;		/* next pointer of the thread */   
   struct thread *prev;		/* previous pointer of the thread */
+  //从属的thread_master
   struct thread_master *master;	/* pointer to the struct thread_master. */
+  /*event处理函数*/
   int (*func) (struct thread *); /* event function */
+  /*event参数*/
   void *arg;			/* event argument */
+  /*附加的event参数*/
   union {
     int val;			/* second argument of the event. */
     int fd;			/* file descriptor in case of read/write. */
@@ -92,6 +97,7 @@ struct thread
   int index;			/* used for timers to store position in queue */
   struct timeval real;
   struct cpu_thread_history *hist; /* cache pointer to cpu_history */
+  //thread创建时的函数名，文件名及行号
   const char *funcname;
   const char *schedfrom;
   int schedfrom_line;
@@ -120,6 +126,7 @@ enum quagga_clkid {
 };
 
 /* Thread types. */
+//现支持的所有事件类型
 #define THREAD_READ           0
 #define THREAD_WRITE          1
 #define THREAD_TIMER          2
@@ -137,6 +144,7 @@ enum quagga_clkid {
 #define THREAD_FD(X)  ((X)->u.fd)
 #define THREAD_VAL(X) ((X)->u.val)
 
+//如果thread为NULL，则添加read thread
 #define THREAD_READ_ON(master,thread,func,arg,sock) \
   do { \
     if (! thread) \
@@ -178,10 +186,13 @@ enum quagga_clkid {
 
 //新建read 任务
 #define thread_add_read(m,f,a,v) funcname_thread_add_read(m,f,a,v,#f,__FILE__,__LINE__)
+//新建write任务
 #define thread_add_write(m,f,a,v) funcname_thread_add_write(m,f,a,v,#f,__FILE__,__LINE__)
+//新建timer任务
 #define thread_add_timer(m,f,a,v) funcname_thread_add_timer(m,f,a,v,#f,__FILE__,__LINE__)
 #define thread_add_timer_msec(m,f,a,v) funcname_thread_add_timer_msec(m,f,a,v,#f,__FILE__,__LINE__)
 #define thread_add_timer_tv(m,f,a,v) funcname_thread_add_timer_tv(m,f,a,v,#f,__FILE__,__LINE__)
+//新建event事件
 #define thread_add_event(m,f,a,v) funcname_thread_add_event(m,f,a,v,#f,__FILE__,__LINE__)
 #define thread_execute(m,f,a,v) funcname_thread_execute(m,f,a,v,#f,__FILE__,__LINE__)
 

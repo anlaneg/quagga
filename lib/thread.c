@@ -514,6 +514,7 @@ thread_timer_update(void *node, int actual_position)
 }
 
 /* Allocate new thread master.  */
+/*申请thread master*/
 struct thread_master *
 thread_master_create ()
 {
@@ -689,6 +690,7 @@ thread_master_free (struct thread_master *m)
 static int
 thread_empty (struct thread_list *list)
 {
+    /*检查链表是否为空*/
   return  list->head ? 0 : 1;
 }
 
@@ -722,11 +724,12 @@ thread_timer_remain(struct thread *thread)
   return timeval_subtract(thread->u.sands, relative_time);
 }
 
+//debug相关的参数定义
 #define debugargdef  const char *funcname, const char *schedfrom, int fromln
 #define debugargpass funcname, schedfrom, fromln
 
 /* Get new thread.  */
-//分配一个thread变量
+//分配一个thread变量，用于扮演事件模式中的event
 static struct thread *
 thread_get (struct thread_master *m, u_char type,
 	    int (*func) (struct thread *), void *arg, debugargdef)
@@ -736,7 +739,7 @@ thread_get (struct thread_master *m, u_char type,
   if (! thread)
     {
       thread = XCALLOC (MTYPE_THREAD, sizeof (struct thread));
-      m->alloc++;
+      m->alloc++;/*申请的thread总数增加*/
     }
   thread->type = type;
   thread->add_type = type;
@@ -776,8 +779,9 @@ fd_clear_read_write (int fd, thread_fd_set *fdset)
   return 1;
 }
 
+//处理读写任务的创建
 static struct thread *
-funcname_thread_add_read_write (int dir, struct thread_master *m, 
+funcname_thread_add_read_write (int dir/*事件类型*/, struct thread_master *m/*所属的master*/,
 		 int (*func) (struct thread *), void *arg, int fd,
 		 debugargdef)
 {
@@ -802,6 +806,7 @@ funcname_thread_add_read_write (int dir, struct thread_master *m,
 
   thread = thread_get (m, dir, func, arg, debugargpass);
   thread->u.fd = fd;
+
   //将thread加入相应集合
   if (dir == THREAD_READ)
     thread_add_fd (m->read, thread);
@@ -812,6 +817,7 @@ funcname_thread_add_read_write (int dir, struct thread_master *m,
 }
 
 /* Add new read thread. */
+//添加一个读任务
 struct thread *
 funcname_thread_add_read (struct thread_master *m, 
 		 int (*func) (struct thread *), void *arg, int fd,
@@ -822,6 +828,7 @@ funcname_thread_add_read (struct thread_master *m,
 }
 
 /* Add new write thread. */
+//添加一个写任务
 struct thread *
 funcname_thread_add_write (struct thread_master *m,
 		 int (*func) (struct thread *), void *arg, int fd,
@@ -831,6 +838,7 @@ funcname_thread_add_write (struct thread_master *m,
                                          arg, fd, debugargpass);
 }
 
+//添加一个timer任务
 static struct thread *
 funcname_thread_add_timer_timeval (struct thread_master *m,
                                    int (*func) (struct thread *), 
@@ -1420,6 +1428,7 @@ funcname_thread_execute (struct thread_master *m,
 }
 
 /* Co-operative thread main loop */
+//事件模式处理入口
 void
 thread_main (struct thread_master *master)
 {

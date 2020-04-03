@@ -86,6 +86,7 @@ zmalloc (int type, size_t size)
 void *
 zzcalloc (int type, size_t size)
 {
+    //内存申请
   void *memory;
 
   memory = calloc (1, size);

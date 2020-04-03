@@ -72,6 +72,7 @@ writen(int fd, const u_char *ptr, int nbytes)
   return nbytes - nleft;
 }
 
+//设置fd非阻塞
 int
 set_nonblocking(int fd)
 {

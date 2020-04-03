@@ -39,6 +39,7 @@ enum event {ZCLIENT_SCHEDULE, ZCLIENT_READ, ZCLIENT_CONNECT};
 /* Prototype for event manager. */
 static void zclient_event (enum event, struct zclient *);
 
+/*zclient server端unix socket路径*/
 const char *zclient_serv_path = NULL;
 
 /* This file local debug flag. */
@@ -1284,6 +1285,7 @@ const char *zclient_serv_path_get()
   return zclient_serv_path ? zclient_serv_path : ZEBRA_SERV_PATH;
 }
 
+/*设置server path路径*/
 void
 zclient_serv_path_set (char *path)
 {

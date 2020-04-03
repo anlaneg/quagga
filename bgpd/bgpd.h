@@ -33,10 +33,10 @@ typedef u_int16_t bgp_size_t;
 struct bgp_master
 {
   /* BGP instance list.  */
-  struct list *bgp;
+  struct list *bgp;/*容许多个bgp实例*/
 
   /* BGP thread master.  */
-  struct thread_master *master;
+  struct thread_master *master;/*事件根节点*/
 
   /* work queues */
   struct work_queue *process_main_queue;
